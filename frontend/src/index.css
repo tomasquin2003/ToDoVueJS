@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+html {
+  color-scheme: light dark;
+}
+
+/* Tailwind v4: habilitar dark mode por clase */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Transiciones de listas */
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(4px); }
+.list-enter-active, .list-leave-active { transition: all 200ms ease; }
+.list-move { transition: transform 200ms ease; }
