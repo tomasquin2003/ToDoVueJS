@@ -1,5 +1,17 @@
 # ToDoVueJS
 
+### conceptos claves de vue js:
+
+**Componentes:** Vue organiza el código en componentes reutilizables. Un componente esun archivo .vue con 3 secciones: ```<template> → estructura HTML``` , ```<script> → lógica (JS)```, ```<style> → estilos (CSS)```
+
+**interpolacion:** con ``` {{ }}```  muestra valores en el HTML
+
+**directivas:** Las directivas Vue son atributos HTML especiales con el prefijo v- que le dan a la etiqueta HTML funcionalidad adicional 
+
+**propiedades computadas (computed):** Son valores derivados de otros datos. Se recalculan automáticamente cuando cambia la información de la que dependen.
+
+**Reactive state:**En Composition API, la forma recomendada de declarar el estado reactivo es mediante la función ```ref()```, la cual toma el argumento y lo devuelve envuelto dentro de un objeto de referencia con una propiedad ```.value```
+
 ### Requisitos
 
 - Node.js 18+ (recomendado 20+).
@@ -7,6 +19,8 @@
 - npm (viene con Node).
 
 - VS Code (recomendado) y extensión Tailwind CSS IntelliSense (opcional pero útil).
+
+**Estructura del proyecto:**
 
 ```
 project-root/
@@ -27,6 +41,7 @@ project-root/
             ├── TodoList.vue
             └── AISidebar.vue
 ```
+
 
 ## 1) Crear el proyecto (Vite + Vue)
 
@@ -93,6 +108,37 @@ module.exports = {
 - PostCSS actúa como procesador intermedio que aplica plugins (Tailwind y Autoprefixer).
 
 - El archivo ```tailwind.config.cjs``` indica dónde buscar clases CSS en el código.
+
+
+### Nota: verifica que el package.json coincida
+
+```
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.18"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@tailwindcss/postcss7-compat": "^2.2.17",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13",
+    "vite": "^7.1.2"
+  }
+}
+```
 
 
 ## 4) src/index.css (Tailwind v4 minimal)
@@ -228,9 +274,42 @@ Acciones: add, remove, toggle, updateText, etc.
 
 Persistencia en ```localStorage``` para mantener tareas entre recargas.
 
+
+- ```type Priority = 'low' | 'medium' | 'high'
+type Task = {id: number ...``` Tipos para robustez (TypeScript).
+
+- ```export const useTodoStore = defineStore('todo', () => { ...```: Carga inicial desde localStorage con saneamiento. Convierte/valida cada campo para evitar corrupción de datos (por ejemplo, si alguien modificó localStorage).
+
+Acciones del store (mutaciones controladas):
+
+Cada acción modifica ```todos``` y luego llama a ```persist()```. Garantiza que el estado de la app y el persistido estén siempre alineados después de cualquier cambio.
+
+```add``` usa ```Date.now()``` como id rápido.
+
+```clearDone``` elimina completadas de una vez.
+
+Exposición del store: estado + API pública:
+
+```
+return { todos, add, remove, toggle, setDone, updateText, updatePriority, updateDueDate, clearDone }
+})
+```
+
+
 ## 7) Componentes: UI principal
 
-**src/components/TodoList.vue**
+aqui incluimos: 
+
+- Formulario para añadir tareas con texto, prioridad y fecha.
+
+- Lista de tareas pendientes y hechas, con edición en línea.
+
+- Animaciones con TransitionGroup.
+
+- Botón para limpiar tareas completadas.
+
+
+**creamos src/components/TodoList.vue**
 
 ```
 <template>
@@ -310,17 +389,45 @@ const doneTodos = computed(() => store.todos.filter(t => t.done))
 </script>
 
 ```
-aqui incluimos: 
 
-- Formulario para añadir tareas con texto, prioridad y fecha.
+**template:** 
+- ```@submit.prevent="onAdd"``` evita el refresh del navegador y llama a la función onAdd.
 
-- Lista de tareas pendientes y hechas, con edición en línea.
+- ```v-model``` en inputs enlaza bidireccionalmente valores del formulario (text, priority, dueDate).
 
-- Animaciones con TransitionGroup.
+- ```TransitionGroup name="list"``` activa animaciones para entradas/salidas/movimientos de ítems.
 
-- Botón para limpiar tareas completadas.
+- ```v-for="t in pendingTodos" :key="t.id"``` renderiza cada tarea y usa id para el diffing de Vue.
+
+- Checkbox con ```:checked``` + ```@change:``` se usa un "modelo controlado": lees ```t.done``` y al cambiar disparas ```store.setDone(...)```
+
+- ```<input v-model="t.text" @blur="store.updateText(...)">```:
+  - ```v-model``` actualiza inmediatamente el objeto reactivo t (se ve el texto al teclear).
+
+  - ```@blur``` persiste en localStorage llamando a la acción del store.
+
+- ```<select :value ... @change ...>``` y ```<input type="date" :value ... @input ...>``` no usan v-model aquí; se hace lectura ```(:value)``` + escritura a través del store.
+
+**Script:**
+- ```<script setup>``` sintaxis de composición simplificada.
+
+- **Refs locales (text, priority, dueDate):** estado del formulario.
+
+- ```onAdd()``` valida, delega al store y limpia el formulario.
+
+- ```const remaining = computed(() => store.todos.filter(t => !t.done).length) ```: ```computed``` deriva listas y contadores desde ```store.todos```
+
 
 ## 8) Añadir modo oscuro
+
+creamos un composable que encapsula la lógica de modo oscuro:
+
+- Detecta configuración del sistema.
+
+-  Guarda preferencia en localStorage.
+
+- Alterna clase .dark en ```<html>```.
+
 crea src/composables/useDarkMode.ts de la siguiente manera:
 
 ```
@@ -366,13 +473,22 @@ export function useDarkMode() {
 
 ```
 
-creamos un composable que encapsula la lógica de modo oscuro:
 
-- Detecta configuración del sistema.
+- ```const isDark = ref(false)``` : ```isDark```es el “switch” del modo, ```ref``` permite reaccionar en tiempo real y que la UI se re-renderice.
 
--  Guarda preferencia en localStorage.
+- ```applyClass(value: boolean) ``` agrega o quita ```.dark``` en ```<html>.```
 
-- Alterna clase .dark en ```<html>```.
+- ```loadInitial()```: Respeta tu preferencia previa (localStorage). Si no hay preferencia, usa la del sistema con ```matchMedia('(prefers-color-scheme: dark)')```
+
+- ```onMounted ``` asegura que el DOM exista antes de tocar ```documentElement```
+
+- ```watchEffect``` reacciona a cambios en ```isDark```:
+
+  - Aplica/quita la clase.
+
+  - Persiste la preferencia.
+
+- ```return { isDark, toggle }``` Devuelve API del composable para que cualquier componente lo use.
 
 ## 9) src/App.vue
 
